@@ -1,0 +1,267 @@
+# Vorbereitungen
+library(foreign)
+library(psych)
+library(car)
+library(gvlma)
+library(pscl)
+library(ISLR)
+library(multilevel)
+library(MuMIn)
+library(MASS)
+library(lme4)
+library(mvtnorm)
+library(semPlot)
+library(semTools)
+library(irlba)
+library(glmnet)
+library(boot)
+library(rpart)
+library(rpart.plot)
+library(caret)
+library(funModeling)
+library(fpc)
+
+#Datenstruktur 
+D <- read_excel("PGB.xlsx")
+str(D)
+summary(D)
+describeBy(D)
+describeBy(c(4:28), list(abt, teat), mat = TRUE)
+
+#subDatensätze
+data(D, package = "okcupiddata")
+Abt1 <- filter(D, abt == "1")
+Abt2 <- filter(D, abt == "2")
+Abt3 <- filter(D, abt == "3")
+Abt4 <- filter(D, abt == "4")
+
+#Übersicht Dimensionen
+barplot(table(D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21), legend=TRUE)
+boxplot(data.frame(D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21)~ D$abt)
+boxplot(data.frame(D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21)~ D$taet)
+pairs.panels(data.frame(D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21))
+
+# Gefährdungen einzelne Dimensionen
+mean(D$v1, na.rm=T)
+sd(D$v1, na.rm=T)
+mean(D$v2, na.rm=T)
+sd(D$v2, na.rm=T)
+mean(D$v3, na.rm=T)
+sd(D$v3, na.rm=T)
+mean(D$v4, na.rm=T)
+sd(D$v4, na.rm=T)
+mean(D$v5, na.rm=T)
+sd(D$v5, na.rm=T)
+mArbeitsinhalt <- (mean(D$v1)+mean(D$v2)+mean(D$v3)+mean(D$v4)+mean(D$v5))/5
+sdArbeitsinhalt <- (sd(D$v1)+sd(D$v2)+sd(D$v3)+sd(D$v4)+sd(D$v5))/5
+
+mean(D$v6, na.rm=T)
+sd(D$v6, na.rm=T)
+mean(D$v7, na.rm=T)
+sd(D$v7, na.rm=T)
+mean(D$v8, na.rm=T)
+sd(D$v8, na.rm=T)
+mean(D$v9, na.rm=T)
+sd(D$v9, na.rm=T)
+mean(D$v10, na.rm=T)
+sd(D$v10, na.rm=T)
+mean(D$v11, na.rm=T)
+sd(D$v11, na.rm=T)
+mean(D$v12, na.rm=T)
+sd(D$v12, na.rm=T)
+mArbeitsorganisation <- (mean(D$v6)+mean(D$v7)+mean(D$v8)+mean(D$v9)+mean(D$v10)+mean(D$v11)+mean(D$v12))/7
+sdArbeitsorganisation <- (sd(D$v6)+sd(D$v7)+sd(D$v8)+sd(D$v9)+sd(D$v10)+sd(D$v11)+sd(D$v12))/7
+
+mean(D$v13, na.rm=T)
+sd(D$v13, na.rm=T)
+mean(D$v14, na.rm=T)
+sd(D$v14, na.rm=T)
+mean(D$v15, na.rm=T)
+sd(D$v15, na.rm=T)
+mean(D$v16, na.rm=T)
+sd(D$v16, na.rm=T)
+mSoziales <- (mean(D$v13)+mean(D$v14)+mean(D$v15)+mean(D$v16))/4
+sdSoziales <- (sd(D$v13)+sd(D$v14)+sd(D$v15)+sd(D$v16))/4
+
+mean(D$v17, na.rm=T)
+sd(D$v17, na.rm=T)
+mean(D$v18, na.rm=T)
+sd(D$v18, na.rm=T)
+mSoziales <- (mean(D$v17)+mean(D$v18))/2
+sdSoziales <- (sd(D$v17)+sd(D$v18))/2
+
+Inhalt <- (D$v1 + D$v2 + D$v3 + D$v4 + D$v5) / 5
+Organisation <- (D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12) / 7
+Soziales <- (D$v13 + D$v14 + D$v15 + D$v16) / 4
+Umgebung <- (D$v17 + D$v18) / 2
+
+#Auswirkungen der psychischen Belastungen
+#mentale Gesundheit
+o1 <- na.omit(data.frame(D$o1, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21))
+mult_o1 <- lm(D$o1 ~ D$v1 + D$v2 + D$v3 + D$v4 + D$v5 + D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12 + D$v13 + D$v14 + D$v15 + D$v16 + D$v17 + D$v18 + D$v19 + D$v20 + D$v21, data = o1)
+
+par(mfrow  = c(2,2))
+plot(mult_o1)
+dev.off()
+vif(mult_o1)
+durbinWatsonTest(mult_o1)
+Zsm_o1 <- data.frame(D$o1, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21)
+pairs.panels(Zsm_o1)
+
+summary(mult_o1)
+confint(mult_o1)
+
+#Performance
+o2 <- na.omit(data.frame(D$o2, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21))
+mult_o2 <- lm(D$o2 ~ D$v1 + D$v2 + D$v3 + D$v4 + D$v5 + D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12 + D$v13 + D$v14 + D$v15 + D$v16 + D$v17 + D$v18 + D$v19 + D$v20 + D$v21, data = o1)
+
+par(mfrow  = c(2,2))
+plot(mult_o2)
+dev.off()
+vif(mult_o2)
+durbinWatsonTest(mult_o2)
+Zsm_o2 <- data.frame(D$o2, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21)
+pairs.panels(Zsm_o2)
+
+summary(mult_o2)
+confint(mult_o2)
+
+#Motivation / Zufriedenheit
+o3 <- na.omit(data.frame(D$o3, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21))
+mult_o3 <- lm(D$o3 ~ D$v1 + D$v2 + D$v3 + D$v4 + D$v5 + D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12 + D$v13 + D$v14 + D$v15 + D$v16 + D$v17 + D$v18 + D$v19 + D$v20 + D$v21, data = o1)
+
+par(mfrow  = c(2,2))
+plot(mult_o3)
+dev.off()
+vif(mult_o3)
+durbinWatsonTest(mult_o3)
+Zsm_o3 <- data.frame(D$o3, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21)
+pairs.panels(Zsm_o3)
+
+summary(mult_o3)
+confint(mult_o3)
+
+#Bindung
+o4 <- na.omit(data.frame(D$o4, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21))
+mult_o4 <- lm(D$o4 ~ D$v1 + D$v2 + D$v3 + D$v4 + D$v5 + D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12 + D$v13 + D$v14 + D$v15 + D$v16 + D$v17 + D$v18 + D$v19 + D$v20 + D$v21, data = o1)
+
+par(mfrow  = c(2,2))
+plot(mult_o4)
+dev.off()
+vif(mult_o4)
+durbinWatsonTest(mult_o4)
+Zsm_o3 <- data.frame(D$o4, D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21)
+pairs.panels(Zsm_o4)
+
+summary(mult_o4)
+confint(mult_o4)
+
+#Vorhersagemodell mentale Gesundheit
+D <- na.omit(D)
+
+D[,4:24] <- apply(D[,4:24],2,scale)
+set.seed(1234)
+
+x <- as.matrix(D[,c(4:24)]) 
+o1 <- as.matrix(D[,c(25)])
+
+lasso1 <- cv.glmnet(x,o1,family="gaussian",type.measure="mse",nfolds=10,alpha=1)
+
+best.lambda_lasso1 <- lasso1$lambda.min
+best.lambda_lasso1
+
+optimal.lambda_lasso1 <- lasso1$lambda.1se
+optimal.lambda_lasso1
+
+fin.lasso1 <- glmnet(x,o1,family="gaussian",lambda=optimal.lambda_lasso1,alpha=1) 
+
+coef(fin.lasso1)
+
+fit1 <- lasso1$glmnet.fit
+xlim <- log(c(fit1$lambda[1], lasso1$lambda.min))
+plot(fit1, xlim=xlim, xvar="lambda",label=TRUE)
+
+#Vorhersagemodell Performance
+x <- as.matrix(D[,c(4:24)]) 
+o2 <- as.matrix(D[,c(26)])
+
+lasso2 <- cv.glmnet(x,o2,family="gaussian",type.measure="mse",nfolds=10,alpha=1)
+
+best.lambda_lasso2 <- lasso2$lambda.min
+best.lambda_lasso2
+
+optimal.lambda_lasso2 <- lasso2$lambda.1se
+optimal.lambda_lasso2
+
+fin.lasso2 <- glmnet(x,o2,family="gaussian",lambda=optimal.lambda_lasso2,alpha=1) 
+
+coef(fin.lasso2)
+
+fit2 <- lasso2$glmnet.fit
+xlim <- log(c(fit2$lambda[1], lasso2$lambda.min))
+plot(fit2, xlim=xlim, xvar="lambda",label=TRUE)
+
+#Vorhersagemodell Motivation / Zufriedenheit
+x <- as.matrix(D[,c(4:24)]) 
+o3 <- as.matrix(D[,c(27)])
+
+lasso3 <- cv.glmnet(x,o3,family="gaussian",type.measure="mse",nfolds=10,alpha=1)
+
+best.lambda_lasso3 <- lasso3$lambda.min
+best.lambda_lasso3
+
+optimal.lambda_lasso3 <- lasso3$lambda.1se
+optimal.lambda_lasso3
+
+fin.lasso3 <- glmnet(x,o3,family="gaussian",lambda=optimal.lambda_lasso3,alpha=1) 
+
+coef(fin.lasso3)
+
+fit3 <- lasso3$glmnet.fit
+xlim <- log(c(fit3$lambda[1], lasso3$lambda.min))
+plot
+
+#Vorhersagemodell Bindung
+x <- as.matrix(D[,c(4:24)]) 
+o4 <- as.matrix(D[,c(28)])
+
+lasso4 <- cv.glmnet(x,o4,family="gaussian",type.measure="mse",nfolds=10,alpha=1)
+
+best.lambda_lasso4 <- lasso4$lambda.min
+best.lambda_lasso4
+
+optimal.lambda_lasso4 <- lasso4$lambda.1se
+optimal.lambda_lasso4
+
+fin.lasso4 <- glmnet(x,o4,family="gaussian",lambda=optimal.lambda_lasso4,alpha=1) 
+
+coef(fin.lasso4)
+
+fit4 <- lasso4$glmnet.fit
+xlim <- log(c(fit4$lambda[1], lasso4$lambda.min))
+plot(fit4, xlim=xlim, xvar="lambda",label=TRUE)
+
+#Mehrebenenmodell mentale Gesundheit
+#Nullmodell 
+m_null <- lme(D$o1 ~ 1, random = ~ 1 |GR , data = D)
+summary(m_null)
+r.squaredGLMM(m_null)
+
+#Random-Intercept-Modell
+m_ri<- lme(D$o1 ~  1 + D$v1 + D$v2 + D$v3 + D$v4 + D$v5 + D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12 + D$v13 + D$v14 + D$v15 + D$v16 + D$v17 + D$v18 + D$v19 + D$v20 + D$v21, random = ~ 1 |GR, data = D)
+summary(m_ri)
+r.squaredGLMM(m_ri)
+
+#Random-Slope-Modell 
+ctrl <- lmeControl(opt='optim')
+m_rs<- lme(D$o1 ~  1 + D$v1 + D$v2 + D$v3 + D$v4 + D$v5 + D$v6 + D$v7 + D$v8 + D$v9 + D$v10 + D$v11 + D$v12 
+           + D$v13 + D$v14 + D$v15 + D$v16 + D$v17 + D$v18 + D$v19 + D$v20 + D$v21, 
+           random = ~ D$v1, D$v2, D$v3, D$v4, D$v5, D$v6, D$v7, D$v8, D$v9, D$v10, D$v11, D$v12, D$v13, D$v14, 
+           D$v15, D$v16, D$v17, D$v18, D$v19, D$v20, D$v21|GR, data = D)
+summary(m_rs)
+r.squaredGLMM(m_rs)
+
+#Modellvergleich
+m_ri_ML <- update(m_ri, method = "ML")
+m_rs_ML <- update(m_rs, method = "ML")
+anova(m_ri_ML, m_rs_ML)
